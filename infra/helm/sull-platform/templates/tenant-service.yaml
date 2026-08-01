@@ -1,0 +1,60 @@
+{{- if .Values.tenantService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenant-service
+  labels:
+    app.kubernetes.io/name: tenant-service
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.tenantService.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tenant-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tenant-service
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: tenant-service
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.tenantService.image.repository }}:{{ .Values.tenantService.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: SERVICE_NAME
+              value: tenant-service
+            - name: NODE_ENV
+              value: {{ .Values.global.environment | quote }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tenant-service
+  labels:
+    app.kubernetes.io/name: tenant-service
+spec:
+  selector:
+    app.kubernetes.io/name: tenant-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+{{- end }}

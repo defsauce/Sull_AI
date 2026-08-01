@@ -1,0 +1,9 @@
+apiVersion: v2
+name: sull-platform
+description: Umbrella Helm chart for the Sull AI enterprise platform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: Sull AI Platform
+    email: platform@sull.ai

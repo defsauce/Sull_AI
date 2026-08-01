@@ -1,0 +1,37 @@
+:root {
+  --ink: #0b1f1c;
+  --foam: #e8f4f0;
+  --signal: #1f8a70;
+  --ember: #c45c26;
+  --mist: #9bb7b0;
+  --panel: rgba(11, 31, 28, 0.72);
+  --font-display: 'Fraunces', 'Iowan Old Style', 'Palatino Linotype', serif;
+  --font-body: 'Sora', 'Avenir Next', 'Segoe UI', sans-serif;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Sora:wght@400;500;600&display=swap');
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  color: var(--foam);
+  font-family: var(--font-body);
+  background:
+    radial-gradient(circle at 12% 18%, rgba(31, 138, 112, 0.35), transparent 42%),
+    radial-gradient(circle at 88% 12%, rgba(196, 92, 38, 0.28), transparent 36%),
+    linear-gradient(160deg, #04110f 0%, #0b1f1c 48%, #132e29 100%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+}

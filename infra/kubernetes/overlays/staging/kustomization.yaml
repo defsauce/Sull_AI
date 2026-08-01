@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+images:
+  - name: ghcr.io/sull-ai/identity-service
+    newTag: staging
+  - name: ghcr.io/sull-ai/tenant-service
+    newTag: staging
+  - name: ghcr.io/sull-ai/api-gateway
+    newTag: staging

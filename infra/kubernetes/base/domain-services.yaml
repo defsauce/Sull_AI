@@ -1,0 +1,533 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: sull-ai
+  labels:
+    app.kubernetes.io/name: user-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: user-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: user-service
+    spec:
+      serviceAccountName: sull-workload
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: user-service
+          image: ghcr.io/sull-ai/user-service:0.1.0
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: sull-platform-config
+          env:
+            - name: SERVICE_NAME
+              value: user-service
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: user-service-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: REDIS_URL
+            - name: JWT_ISSUER
+              value: https://auth.sull.ai
+            - name: JWKS_URL
+              value: http://identity-service.sull-ai.svc.cluster.local:8080/.well-known/jwks.json
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: sull-ai
+spec:
+  selector:
+    app.kubernetes.io/name: user-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+  namespace: sull-ai
+  labels:
+    app.kubernetes.io/name: billing-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: billing-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: billing-service
+    spec:
+      serviceAccountName: sull-workload
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: billing-service
+          image: ghcr.io/sull-ai/billing-service:0.1.0
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: sull-platform-config
+          env:
+            - name: SERVICE_NAME
+              value: billing-service
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: billing-service-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: REDIS_URL
+            - name: JWT_ISSUER
+              value: https://auth.sull.ai
+            - name: JWKS_URL
+              value: http://identity-service.sull-ai.svc.cluster.local:8080/.well-known/jwks.json
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: billing-service
+  namespace: sull-ai
+spec:
+  selector:
+    app.kubernetes.io/name: billing-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-service
+  namespace: sull-ai
+  labels:
+    app.kubernetes.io/name: audit-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: audit-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: audit-service
+    spec:
+      serviceAccountName: sull-workload
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: audit-service
+          image: ghcr.io/sull-ai/audit-service:0.1.0
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: sull-platform-config
+          env:
+            - name: SERVICE_NAME
+              value: audit-service
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: audit-service-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: REDIS_URL
+            - name: JWT_ISSUER
+              value: https://auth.sull.ai
+            - name: JWKS_URL
+              value: http://identity-service.sull-ai.svc.cluster.local:8080/.well-known/jwks.json
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit-service
+  namespace: sull-ai
+spec:
+  selector:
+    app.kubernetes.io/name: audit-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: policy-service
+  namespace: sull-ai
+  labels:
+    app.kubernetes.io/name: policy-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: policy-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: policy-service
+    spec:
+      serviceAccountName: sull-workload
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: policy-service
+          image: ghcr.io/sull-ai/policy-service:0.1.0
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: sull-platform-config
+          env:
+            - name: SERVICE_NAME
+              value: policy-service
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: policy-service-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: REDIS_URL
+            - name: JWT_ISSUER
+              value: https://auth.sull.ai
+            - name: JWKS_URL
+              value: http://identity-service.sull-ai.svc.cluster.local:8080/.well-known/jwks.json
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: policy-service
+  namespace: sull-ai
+spec:
+  selector:
+    app.kubernetes.io/name: policy-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflow-engine
+  namespace: sull-ai
+  labels:
+    app.kubernetes.io/name: workflow-engine
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: workflow-engine
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: workflow-engine
+    spec:
+      serviceAccountName: sull-workload
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: workflow-engine
+          image: ghcr.io/sull-ai/workflow-engine:0.1.0
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: sull-platform-config
+          env:
+            - name: SERVICE_NAME
+              value: workflow-engine
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: workflow-engine-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: REDIS_URL
+            - name: JWT_ISSUER
+              value: https://auth.sull.ai
+            - name: JWKS_URL
+              value: http://identity-service.sull-ai.svc.cluster.local:8080/.well-known/jwks.json
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workflow-engine
+  namespace: sull-ai
+spec:
+  selector:
+    app.kubernetes.io/name: workflow-engine
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vector-service
+  namespace: sull-ai
+  labels:
+    app.kubernetes.io/name: vector-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vector-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vector-service
+    spec:
+      serviceAccountName: sull-workload
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: vector-service
+          image: ghcr.io/sull-ai/vector-service:0.1.0
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: sull-platform-config
+          env:
+            - name: SERVICE_NAME
+              value: vector-service
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vector-service-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: REDIS_URL
+            - name: JWT_ISSUER
+              value: https://auth.sull.ai
+            - name: JWKS_URL
+              value: http://identity-service.sull-ai.svc.cluster.local:8080/.well-known/jwks.json
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vector-service
+  namespace: sull-ai
+spec:
+  selector:
+    app.kubernetes.io/name: vector-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

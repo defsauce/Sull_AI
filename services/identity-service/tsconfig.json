@@ -1,0 +1,9 @@
+{
+  "extends": "@sull/tsconfig/service.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*"],
+  "references": []
+}

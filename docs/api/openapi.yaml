@@ -1,0 +1,154 @@
+openapi: 3.1.0
+info:
+  title: Sull AI Platform API
+  version: 0.1.0
+  description: Enterprise multi-tenant AI operating platform API surface via api-gateway.
+servers:
+  - url: https://api.sull.ai
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status, detail, code, retryable]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string }
+        retryable: { type: boolean }
+        traceId: { type: string }
+    TokenResponse:
+      type: object
+      required: [accessToken, refreshToken, tokenType, expiresIn]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        tokenType: { type: string, enum: [Bearer] }
+        expiresIn: { type: integer }
+    Tenant:
+      type: object
+      required: [id, name, slug, plan, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        plan: { type: string, enum: [free, pro, enterprise] }
+        status: { type: string, enum: [active, suspended, deleted] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+paths:
+  /healthz:
+    get:
+      security: []
+      summary: Liveness
+      responses:
+        "200":
+          description: OK
+  /v1/auth/register:
+    post:
+      security: []
+      summary: Register user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, displayName, password]
+              properties:
+                email: { type: string, format: email }
+                displayName: { type: string }
+                password: { type: string, minLength: 12 }
+      responses:
+        "201":
+          description: Created
+  /v1/auth/login:
+    post:
+      security: []
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: Tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+  /v1/tenants:
+    post:
+      summary: Create tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug]
+              properties:
+                name: { type: string }
+                slug: { type: string }
+                plan: { type: string, enum: [free, pro, enterprise] }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+  /v1/tenants/{tenantId}:
+    get:
+      summary: Get tenant
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Tenant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+  /v1/agents/runs:
+    post:
+      summary: Start agent run
+      responses:
+        "201":
+          description: Run created
+  /v1/models/invoke:
+    post:
+      summary: Invoke model
+      responses:
+        "200":
+          description: Completion
+  /v1/rag/ingest:
+    post:
+      summary: Ingest document
+      responses:
+        "201":
+          description: Ingested
+  /v1/rag/query:
+    post:
+      summary: Retrieve grounded context
+      responses:
+        "200":
+          description: Hits

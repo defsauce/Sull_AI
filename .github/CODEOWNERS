@@ -1,0 +1,7 @@
+* @sull-ai/platform-engineers
+/services/identity-service/** @sull-ai/identity
+/services/tenant-service/** @sull-ai/tenancy
+/infra/terraform/** @sull-ai/platform-engineers @sull-ai/security
+/infra/kubernetes/** @sull-ai/platform-engineers
+/packages/auth-sdk/** @sull-ai/security
+/infra/kubernetes/policies/** @sull-ai/security

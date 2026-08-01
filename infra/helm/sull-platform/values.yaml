@@ -1,0 +1,63 @@
+global:
+  imageRegistry: ghcr.io/sull-ai
+  imagePullPolicy: IfNotPresent
+  environment: production
+
+identityService:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: identity-service
+    tag: "0.1.0"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+tenantService:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: tenant-service
+    tag: "0.1.0"
+
+apiGateway:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: api-gateway
+    tag: "0.1.0"
+  ingress:
+    enabled: true
+    host: api.sull.ai
+
+agentOrchestrator:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: agent-orchestrator
+    tag: "0.1.0"
+
+modelGateway:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: model-gateway
+    tag: "0.1.0"
+
+ragService:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: rag-service
+    tag: "0.1.0"
+
+serviceAccount:
+  create: true
+  name: sull-workload
+
+networkPolicy:
+  enabled: true

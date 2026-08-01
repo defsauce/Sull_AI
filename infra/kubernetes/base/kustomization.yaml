@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sull-ai
+resources:
+  - namespace.yaml
+  - network-policies.yaml
+  - identity-service.yaml
+  - tenant-service.yaml
+  - api-gateway.yaml
+  - ai-plane.yaml
+  - domain-services.yaml
+  - configmap-platform.yaml
+  - service-account.yaml
+commonLabels:
+  app.kubernetes.io/part-of: sull-ai
+  app.kubernetes.io/managed-by: kustomize

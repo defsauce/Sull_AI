@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+namePrefix: ""
+replicas:
+  - name: identity-service
+    count: 1
+  - name: tenant-service
+    count: 1
+  - name: api-gateway
+    count: 1
+images:
+  - name: ghcr.io/sull-ai/identity-service
+    newTag: dev
+  - name: ghcr.io/sull-ai/tenant-service
+    newTag: dev
+  - name: ghcr.io/sull-ai/api-gateway
+    newTag: dev
+patches:
+  - target:
+      kind: HorizontalPodAutoscaler
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3

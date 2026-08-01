@@ -1,0 +1,582 @@
+name: sull-ai
+
+x-service-env: &service-env
+  NODE_ENV: development
+  LOG_LEVEL: debug
+  REDIS_URL: redis://redis:6379/0
+  KAFKA_BROKERS: redpanda:9092
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  JWT_ISSUER: http://identity-service:8080
+  JWT_AUDIENCE: sull-api
+  JWKS_URL: http://identity-service:8080/.well-known/jwks.json
+  OPA_URL: http://opa:8181
+
+services:
+  postgres:
+    image: postgres:16.6-alpine
+    environment:
+      POSTGRES_USER: sull
+      POSTGRES_PASSWORD: sull_dev_password
+      POSTGRES_DB: sull
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sull -d sull"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", ""]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redpanda:
+    image: redpandadata/redpanda:v24.3.1
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=1G
+      - --overprovisioned
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr=internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr=internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr=internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr=redpanda:33145
+      - --advertise-rpc-addr=redpanda:33145
+    ports:
+      - "19092:19092"
+      - "18081:18081"
+      - "18082:18082"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy'"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  redpanda-init:
+    image: redpandadata/redpanda:v24.3.1
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        rpk topic create sull.tenant.events.v1 -p 6 -r 1 --brokers redpanda:9092 || true
+        rpk topic create sull.identity.events.v1 -p 6 -r 1 --brokers redpanda:9092 || true
+        rpk topic create sull.user.events.v1 -p 6 -r 1 --brokers redpanda:9092 || true
+        rpk topic create sull.billing.events.v1 -p 6 -r 1 --brokers redpanda:9092 || true
+        rpk topic create sull.audit.events.v1 -p 6 -r 1 --brokers redpanda:9092 || true
+        rpk topic create sull.notification.events.v1 -p 3 -r 1 --brokers redpanda:9092 || true
+        rpk topic create sull.file.events.v1 -p 3 -r 1 --brokers redpanda:9092 || true
+        rpk topic create sull.agent.events.v1 -p 6 -r 1 --brokers redpanda:9092 || true
+        rpk topic create sull.model.events.v1 -p 6 -r 1 --brokers redpanda:9092 || true
+        rpk topic create sull.rag.events.v1 -p 6 -r 1 --brokers redpanda:9092 || true
+        rpk topic create sull.workflow.events.v1 -p 6 -r 1 --brokers redpanda:9092 || true
+        rpk topic create sull.policy.events.v1 -p 3 -r 1 --brokers redpanda:9092 || true
+        rpk topic create sull.dlq.v1 -p 3 -r 1 --brokers redpanda:9092 || true
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.5
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  opensearch:
+    image: opensearchproject/opensearch:2.18.0
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+    ports:
+      - "9200:9200"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.12-alpine
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: sullminio
+      MINIO_ROOT_PASSWORD: sullminio_dev_password
+    ports:
+      - "9100:9000"
+      - "9101:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  minio-init:
+    image: minio/mc:RELEASE.2024-11-17T19-35-38Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mc alias set local http://minio:9000 sullminio sullminio_dev_password
+        mc mb --ignore-existing local/sull-files
+        mc mb --ignore-existing local/sull-artifacts
+        mc mb --ignore-existing local/sull-opa-bundles
+        mc anonymous set none local/sull-files
+
+  opa:
+    image: openpolicyagent/opa:0.70.0-static
+    command:
+      - run
+      - --server
+      - --addr=0.0.0.0:8181
+      - --log-level=info
+      - /policies
+    volumes:
+      - ../kubernetes/policies:/policies:ro
+    ports:
+      - "8181:8181"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.115.1
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ../monitoring/otel/collector-config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8888:8888"
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: sull_grafana_dev
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ../monitoring/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"
+
+  loki:
+    image: grafana/loki:3.3.1
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ../monitoring/loki/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+
+  identity-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: identity-service
+    environment:
+      <<: *service-env
+      SERVICE_NAME: identity-service
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/identity
+      IDENTITY_JWT_PRIVATE_KEY_PEM: ${IDENTITY_JWT_PRIVATE_KEY_PEM}
+      IDENTITY_JWT_PUBLIC_KEY_PEM: ${IDENTITY_JWT_PUBLIC_KEY_PEM}
+      IDENTITY_ACCESS_TOKEN_TTL_SEC: 900
+      IDENTITY_REFRESH_TOKEN_TTL_SEC: 2592000
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
+
+  tenant-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: tenant-service
+    environment:
+      <<: *service-env
+      SERVICE_NAME: tenant-service
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/tenant
+    ports:
+      - "8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      identity-service:
+        condition: service_started
+
+  api-gateway:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: api-gateway
+    environment:
+      <<: *service-env
+      SERVICE_NAME: api-gateway
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/sull
+      IDENTITY_SERVICE_URL: http://identity-service:8080
+      TENANT_SERVICE_URL: http://tenant-service:8080
+      USER_SERVICE_URL: http://user-service:8080
+      AGENT_ORCHESTRATOR_URL: http://agent-orchestrator:8080
+      MODEL_GATEWAY_URL: http://model-gateway:8080
+      RAG_SERVICE_URL: http://rag-service:8080
+      BILLING_SERVICE_URL: http://billing-service:8080
+      AUDIT_SERVICE_URL: http://audit-service:8080
+      POLICY_SERVICE_URL: http://policy-service:8080
+      FILE_SERVICE_URL: http://file-service:8080
+      WORKFLOW_ENGINE_URL: http://workflow-engine:8080
+      SEARCH_SERVICE_URL: http://search-service:8080
+      NOTIFICATION_SERVICE_URL: http://notification-service:8080
+      EVENT_PROJECTOR_URL: http://event-projector:8080
+      ANALYTICS_SERVICE_URL: http://analytics-service:8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      - identity-service
+      - tenant-service
+
+  agent-orchestrator:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: agent-orchestrator
+    environment:
+      <<: *service-env
+      SERVICE_NAME: agent-orchestrator
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/agent
+    ports:
+      - "8083:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
+
+  model-gateway:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: model-gateway
+    environment:
+      <<: *service-env
+      SERVICE_NAME: model-gateway
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/model
+      MODEL_PROVIDER_MODE: echo
+    ports:
+      - "8084:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  vector-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: vector-service
+    environment:
+      <<: *service-env
+      SERVICE_NAME: vector-service
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/rag
+    ports:
+      - "8085:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  rag-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: rag-service
+    environment:
+      <<: *service-env
+      SERVICE_NAME: rag-service
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/rag
+      VECTOR_SERVICE_URL: http://vector-service:8080
+    ports:
+      - "8086:8080"
+    depends_on:
+      - vector-service
+
+  user-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: user-service
+    environment:
+      <<: *service-env
+      SERVICE_NAME: user-service
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/user
+    ports:
+      - "8087:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      identity-service:
+        condition: service_started
+
+  billing-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: billing-service
+    environment:
+      <<: *service-env
+      SERVICE_NAME: billing-service
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/billing
+    ports:
+      - "8088:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
+
+  audit-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: audit-service
+    environment:
+      <<: *service-env
+      SERVICE_NAME: audit-service
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/audit
+    ports:
+      - "8089:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: notification-service
+    environment:
+      <<: *service-env
+      SERVICE_NAME: notification-service
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/notification
+    ports:
+      - "8090:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  file-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: file-service
+    environment:
+      <<: *service-env
+      SERVICE_NAME: file-service
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/file
+      AWS_S3_BUCKET: sull-files
+      AWS_S3_REGION: us-east-1
+      AWS_S3_ENDPOINT: http://minio:9000
+      AWS_S3_ACCESS_KEY_ID: sullminio
+      AWS_S3_SECRET_ACCESS_KEY: sullminio_dev_password
+      AWS_S3_FORCE_PATH_STYLE: "true"
+    ports:
+      - "8091:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  policy-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: policy-service
+    environment:
+      <<: *service-env
+      SERVICE_NAME: policy-service
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/policy
+    ports:
+      - "8092:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  workflow-engine:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: workflow-engine
+    environment:
+      <<: *service-env
+      SERVICE_NAME: workflow-engine
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/workflow
+    ports:
+      - "8093:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  analytics-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: analytics-service
+    environment:
+      <<: *service-env
+      SERVICE_NAME: analytics-service
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/analytics
+    ports:
+      - "8094:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  search-service:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: search-service
+    environment:
+      <<: *service-env
+      SERVICE_NAME: search-service
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/search
+    ports:
+      - "8095:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  event-projector:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE_NAME: event-projector
+    environment:
+      <<: *service-env
+      SERVICE_NAME: event-projector
+      PORT: 8080
+      DATABASE_URL: postgres://sull:sull_dev_password@postgres:5432/analytics
+      KAFKA_CONSUMER_GROUP: sull-event-projector
+    ports:
+      - "8096:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:
+  redis_data:
+  redpanda_data:
+  qdrant_data:
+  opensearch_data:
+  clickhouse_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:
+  tempo_data:
+  loki_data:
