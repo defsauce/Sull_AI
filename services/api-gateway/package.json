@@ -21,8 +21,8 @@
     "@sull/logger": "workspace:*",
     "@sull/otel": "workspace:*",
     "ioredis": "^5.4.2",
-    "undici": "^7.2.0",
-    "zod": "^3.24.1"
+    "undici": "^8.9.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@sull/tsconfig": "workspace:*",
