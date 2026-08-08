@@ -14,8 +14,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.758.0",
-    "@aws-sdk/s3-request-presigner": "^3.758.0",
+    "@aws-sdk/client-s3": "^3.1103.0",
+    "@aws-sdk/s3-request-presigner": "^3.1103.0",
     "@sull/auth-sdk": "workspace:*",
     "@sull/config": "workspace:*",
     "@sull/contracts": "workspace:*",
@@ -27,7 +27,7 @@
     "@sull/logger": "workspace:*",
     "@sull/otel": "workspace:*",
     "pg": "^8.13.1",
-    "zod": "^3.24.1"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@sull/tsconfig": "workspace:*",

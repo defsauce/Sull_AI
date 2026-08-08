@@ -22,11 +22,11 @@
     "@sull/auth-sdk": "workspace:*",
     "@sull/errors": "workspace:*",
     "@sull/logger": "workspace:*",
-    "fastify": "^5.2.0",
-    "@fastify/cors": "^10.0.1",
+    "fastify": "^5.11.2",
+    "@fastify/cors": "^11.3.0",
     "@fastify/helmet": "^13.0.0",
-    "@fastify/rate-limit": "^10.2.1",
-    "zod": "^3.24.1"
+    "@fastify/rate-limit": "^11.2.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@sull/tsconfig": "workspace:*",
