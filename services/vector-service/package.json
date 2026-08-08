@@ -25,9 +25,9 @@
   },
   "devDependencies": {
     "@sull/tsconfig": "workspace:*",
-    "@types/pg": "^8.11.10",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
+    "@types/pg": "^8.20.4",
+    "tsx": "^4.23.7",
+    "typescript": "^7.0.2",
     "vitest": "^2.1.8"
   }
 }
