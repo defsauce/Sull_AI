@@ -20,8 +20,8 @@
   },
   "dependencies": {
     "@sull/errors": "workspace:*",
-    "jose": "^5.9.6",
-    "zod": "^3.24.1"
+    "jose": "^6.2.12",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@sull/tsconfig": "workspace:*",
